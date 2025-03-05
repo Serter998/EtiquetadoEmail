@@ -21,7 +21,8 @@ public class EmailService {
             properties.put("mail.imap.host", "imap.gmail.com");
             properties.put("mail.imap.port", "993");
             properties.put("mail.imap.ssl.trust", "imap.gmail.com");
-            properties.put("mail.imap.ssl.enable", "true");
+            properties.put("mail.imap.ssl.enable", "false");
+            properties.put("mail.imap.starttls.enable", "true");
             Session emailSession = Session.getDefaultInstance(properties);
             store = emailSession.getStore("imaps");
             store.connect("imap.gmail.com", 993, "sergio04.trabajo04@gmail.com", "jqgi vuww fpys ewzq");
@@ -52,16 +53,21 @@ public class EmailService {
     public List<String> labelEmails() {
         List<String> emailEtiquetado = new ArrayList<>();
         try {
-            Folder inbox = store.getDefaultFolder().getFolder("INBOX");
+            Folder inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_ONLY);
             Message[] messages = inbox.getMessages();
 
             int limit = Math.min(7, messages.length);
 
-            Folder[] allFolders = store.getDefaultFolder().list("*");
-            Folder[] folders = Arrays.stream(allFolders).filter(f -> f.getName().equalsIgnoreCase("Hecho") ||
-                    f.getName().equalsIgnoreCase("En progreso") ||
-                    f.getName().equalsIgnoreCase("Por hacer")).toArray(Folder[]::new);
+            String[] folderNames = {"Hecho", "En progreso", "Por hacer"};
+            Folder[] folders = new Folder[folderNames.length];
+
+            for (int i = 0; i < folderNames.length; i++) {
+                folders[i] = store.getFolder(folderNames[i]);
+                if (!folders[i].exists()) {
+                    folders[i].create(Folder.HOLDS_MESSAGES);
+                }
+            }
 
             for (int i = 0; i < limit; i++) {
                 Message message = messages[i];
@@ -77,9 +83,7 @@ public class EmailService {
 
                 if (!emailLabels.isEmpty()) {
                     emailEtiquetado.add("Correo: " + message.getSubject() + " | Etiquetas: " + String.join(", ", emailLabels));
-                }
-                else
-                {
+                } else {
                     emailEtiquetado.add("Correo: " + message.getSubject());
                 }
             }
@@ -94,14 +98,11 @@ public class EmailService {
         return emailEtiquetado;
     }
 
-
     private boolean isMessageInFolder(Message message, Folder folder) {
         try {
             if (folder instanceof IMAPFolder imapFolder) {
                 imapFolder.open(Folder.READ_ONLY);
-
                 String messageUID = ((IMAPMessage) message).getMessageID();
-
                 Message[] folderMessages = imapFolder.getMessages();
 
                 for (Message folderMessage : folderMessages) {
